@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Value-based Cumulative Flow Diagram</title>
+    <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
+    <!--  Build Date: Sat Nov 15 2014 11:58:31 GMT-0800 (PST) -->
+    
+    <script type="text/javascript">
+        var APP_BUILD_DATE = "Sat Nov 15 2014 11:58:31 GMT-0800 (PST)";
+        var CHECKSUM = 4798966750;
+    </script>
+    
+    <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
+
+    <script type="text/javascript">
+        Rally.onReady(function() {
+             
+/**
+ * A link that pops up a version dialog box
+ */
+
+Ext.define('Rally.technicalservices.InfoLink',{
+    extend: 'Ext.Component',
+    alias: 'widget.tsinfolink',
+    
+    /**
+     * @cfg {String} informationHtml
+     * Additional text to be displayed on the popup dialog (for exmaple,
+     * to add a description of the app's use or functionality)
+     */
+    informationHtml: null,
+    
+    /**
+     * 
+     * cfg {String} title
+     * The title for the dialog box
+     */
+     title: "Build Information",
+    
+    renderTpl: "<div id='{id}-infolinkWrap' class='tsinfolink'>i</div>",
+
+    initComponent: function() {
+        this.callParent(arguments);
+       
+    },
+    
+    onRender: function() {
+        this.callParent(arguments);
+        this.mon(this.el,'click',this.onClick,this);
+    },
+    _generateChecksum: function(string){
+        var chk = 0x12345678,
+            i;
+        string = string.replace(/var CHECKSUM = .*;/,"");
+        string = string.replace(/\s/g,"");  //Remove all whitespace from the string.
+        
+        for (i = 0; i < string.length; i++) {
+            chk += (string.charCodeAt(i) * i);
+        }
+    
+        return chk;
+    },
+    _checkChecksum: function(container) {
+        var me = this;
+        Ext.Ajax.request({
+            url: document.URL,
+            params: {
+                id: 1
+            },
+            success: function (response) {
+                text = response.responseText;
+                if ( CHECKSUM ) {
+                    if ( CHECKSUM !== me._generateChecksum(text) ) {
+                        console.log("Checksums don't match!");
+                        if ( me.dialog ) {
+                            me.dialog.add({xtype:'container',html:'Checksums do not match'});
+                        }
+                    }
+                }
+            }
+        });
+    },
+    onClick: function(e) {
+        var me = this;
+        this._checkChecksum(this);
+        
+        var dialog_items = [];
+        
+        if ( this.informationHtml ) {
+            dialog_items.push({
+                xtype:'container',
+                html: this.informationHtml
+            });
+        }
+                
+        dialog_items.push({
+            xtype:'container',
+            html:"This app was created by the Rally Technical Services Team."
+        });
+        
+        if ( APP_BUILD_DATE ) {
+            dialog_items.push({
+                xtype:'container',
+                html:'Build date/time: ' + APP_BUILD_DATE
+            });
+        }
+        
+        if (this.dialog){this.dialog.destroy();}
+        this.dialog = Ext.create('Rally.ui.dialog.Dialog',{
+            defaults: { padding: 5, margin: 5 },
+            closable: true,
+            draggable: true,
+            title: me.title,
+            items: dialog_items
+        });
+        this.dialog.show();
+    }
+});
+
+/*
+ */
+Ext.define('Rally.technicalservices.Logger',{
+    constructor: function(config){
+        Ext.apply(this,config);
+    },
+    log: function(args){
+        var timestamp = "[ " + Ext.util.Format.date(new Date(), "Y-m-d H:i:s.u") + " ]";
+        //var output_args = arguments;
+        //output_args.unshift( [ "[ " + timestamp + " ]" ] );
+        //output_args = Ext.Array.push(output_args,arguments);
+        
+        var output_args = [];
+        output_args = Ext.Array.push(output_args,[timestamp]);
+        output_args = Ext.Array.push(output_args, Ext.Array.slice(arguments,0));
+
+        window.console && console.log.apply(console,output_args);
+    }
+
+});
+
+/*
+ * override the call to load the store so that users who don't have permissions
+ * don't get locked out of seeing things they do have permissions for.
+ * 
+ */
+Ext.override(Rally.ui.chart.Chart,{
+    _loadStore: function (storeConfig, storeRank) {
+        var self = this;
+
+        Ext.merge(storeConfig, {
+            exceptionHandler: function (proxy, response, operation) {
+                if (response.status !== 200) {
+                    self.queryValid = false;
+                }
+
+                if (response.status === 409) {
+                    self.workspaceHalted = true;
+                } else if (response.status === 503) {
+                    self.serviceUnavailable = true;
+                }
+            }
+        });
+
+        storeConfig.limit = storeConfig.limit || Infinity;
+
+        var store = Ext.create(this.storeType, storeConfig);
+        store.rank = storeRank;
+
+        store.on('load', this._storeLoadHandler, this);
+        store.load({params: { removeUnauthorizedSnapshots: true } });
+    }
+});
+
+Ext.define("Rally.technicalservices.ValueCFDCalculator", {
+    extend: "Rally.data.lookback.calculator.TimeSeriesCalculator",
+    config: {
+        /*
+         * Required
+         */
+        group_field: null,
+        /*
+         * Name of field that holds the value to add up
+         * (Required if type is "sum")
+         */
+        value_field: null, 
+        /*
+         * allowed_values (Required): array of available values in field to group by
+         */
+         allowed_values: null
+    },
+    constructor: function(config){
+        this.callParent(arguments);
+        if (!this.allowed_values || this.allowed_values.length == 0) {
+            throw "Cannot create Rally.technicalservices.ValueCFDCalculator without allowed_values";
+        }
+        if (!this.group_field) {
+            throw "Cannot create Rally.technicalservices.ValueCFDCalculator without group_field";
+        }
+        if (!this.value_field) {
+            throw "Cannot create Rally.technicalservices.ValueCFDCalculator by sum without value_field";
+        }
+    },
+    /*
+     * How to measure
+     * 
+     * { 
+     *      field       : the field that has the value to add up on each day
+     *      as          : the name to display in the legend
+     *      display     : "line" | "column" | "area"
+     *      f           : function to use (e.g., "sum", "filteredSum"
+     *      filterField : (when f=filteredSum) field with values used to group by (stacks on column)
+     *      filterValues: (when f=filteredSum) used to decide which values of filterField to show
+     */
+    getMetrics: function () {
+        var metric = {
+            f: 'groupBySum',
+            field: this.value_field, 
+            groupByField: this.group_field, 
+            allowedValues: this.allowed_values,
+            display:'area'
+        };
+        
+        return [ metric ];
+    },
+    /*
+     * WSAPI will give us allowed values that include "", but the
+     * snapshot will actually say null
+     * 
+     */
+    _convertNullToBlank:function(snapshots){
+        var number_of_snapshots = snapshots.length;
+        for ( var i=0;i<number_of_snapshots;i++ ) {
+            if ( snapshots[i][this.group_by_field] === null ) {
+                snapshots[i][this.group_by_field] = "";
+            }
+        }
+        return snapshots;
+    },
+    /*
+     * For some reason, there are undefineds in the value fields sometimes
+     * 
+     */
+    _convertUndefinedToNumber:function(snaps){
+        var snapshots = Ext.clone(snaps);
+        var number_of_snapshots = snapshots.length;
+        var allowed_values = this.allowed_values;
+        var number_of_allowed_values = allowed_values.length;
+        
+        for ( var i=0;i<number_of_snapshots;i++ ) {
+            if ( !snapshots[i][this.value_field] ) {
+                snapshots[i][this.value_field] = 0;
+            }
+        }
+        return snapshots;
+    },
+    runCalculation: function(snapshots){
+        var calculatorConfig = this._prepareCalculatorConfig(),
+        seriesConfig = this._buildSeriesConfig(calculatorConfig);
+
+        var calculator = this.prepareCalculator(calculatorConfig);
+        
+        var clean_snapshots = this._convertNullToBlank(snapshots);
+
+        clean_snapshots = this._convertUndefinedToNumber(snapshots);
+        
+        if ( clean_snapshots.length > 0 ) {
+            calculator.addSnapshots(clean_snapshots, this._getStartDate(clean_snapshots), this._getEndDate(clean_snapshots));
+        }
+        var chart_data = this._transformLumenizeDataToHighchartsSeries(calculator, seriesConfig);
+        
+        // check for false
+        Ext.Array.each(chart_data.series,function(series){
+            if ( series.name === "" ) {
+                series.name = "None";
+            }
+            
+            if (series.name === false) {
+                series.name = "False";
+            }
+            
+            if (series.name == true) {
+                series.name = "True";
+            }
+        });
+        return chart_data;
+    },
+    /*
+     * Modified to allow groupBySum/groupByCount to spit out stacked area configs
+     */
+    _buildSeriesConfig: function (calculatorConfig) {
+        var aggregationConfig = [],
+            metrics = calculatorConfig.metrics,
+            derivedFieldsAfterSummary = calculatorConfig.deriveFieldsAfterSummary;
+
+        for (var i = 0, ilength = metrics.length; i < ilength; i += 1) {
+            var metric = metrics[i];
+            if ( metric.f == "groupBySum" || metric.f == "groupByCount") {
+                var type = metric.f.replace(/groupBy/,"");
+                
+                if ( ! metric.allowedValues ) {
+                    throw "Rally.TechnicalServices.CFDCalculator requires setting 'allowed_values'";
+                }
+                Ext.Array.each(metric.allowedValues,function(allowed_value){
+                    aggregationConfig.push({
+                        f: type,
+                        name: allowed_value,
+                        type: metric.display || "area",
+                        dashStyle: metric.dashStyle || "Solid",
+                        stack: 1
+                    });
+                });
+            } else {
+                aggregationConfig.push({
+                    name: metric.as || metric.field,
+                    type: metric.display,
+                    dashStyle: metric.dashStyle || "Solid",
+                    stack: 1
+                });
+            }
+        }
+
+        for (var j = 0, jlength = derivedFieldsAfterSummary.length; j < jlength; j += 1) {
+            var derivedField = derivedFieldsAfterSummary[j];
+            aggregationConfig.push({
+                name: derivedField.as,
+                type: derivedField.display,
+                dashStyle: derivedField.dashStyle || "Solid"
+            });
+        }
+
+        return aggregationConfig;
+    }
+});
+Ext.define('CustomApp', {
+    extend: 'Rally.app.App',
+    componentCls: 'app',
+    logger: new Rally.technicalservices.Logger(),
+    defaults: { margin: 5 },
+    value_field: 'c_BenefitProductivityValue',
+    group_field: 'State',
+    model: 'PortfolioItem/EPIC',
+    items: [
+        {xtype:'container',itemId:'selector_box'},
+        {xtype:'container',itemId:'display_box'},
+        {xtype:'tsinfolink'}
+    ],
+    launch: function() {
+        this._getAllowedValuesFor(this.group_field).then({
+            scope: this,
+            success: function(allowed_values){
+                this.logger.log("Allowed Values for ", this.group_field, allowed_values);
+                this._addChart(this.down('#display_box'), allowed_values);
+            },
+            failure: function(message) {
+                this.down('#display_box').add({xtype:'container',html:'Error finding allowed values: ' + message});
+            }
+        });
+    },
+    _addChart: function(container, allowed_values){
+        var project_oid = this.getContext().getProject().ObjectID;
+
+        var start_date = Rally.util.DateTime.add(new Date(),"month",-2);
+        var height = Ext.getBody().getHeight();
+        
+        if ( height > 20 ) {
+            height = height - 20;
+        }
+        container.add({
+            xtype:'rallychart',
+            storeType:'Rally.data.lookback.SnapshotStore',
+            calculatorType:'Rally.technicalservices.ValueCFDCalculator',
+            calculatorConfig: {
+                allowed_values: allowed_values,
+                group_field: this.group_field,
+                value_field: this.value_field,
+                startDate: start_date
+            },
+            storeConfig: {
+                filters:[                    
+                    {property:'_TypeHierarchy',value: this.model},
+                    {property:'_ProjectHierarchy', value: project_oid}
+                ],
+                fetch: [this.group_field,this.value_field],
+                hydrate: [this.group_field]
+            },
+            chartConfig: {
+                chart: {
+                    zoomType: 'xy',
+                    height: height
+                },
+                title: {
+                    text: 'Cumulative Flow By Value'
+                },
+                xAxis: {
+                    tickmarkPlacement: 'on',
+                    tickInterval: 7,
+                    title: {
+                        text: ''
+                    }
+                },
+                yAxis: [{title:{text: 'Value'}}],
+                plotOptions: {
+                    series: {
+                        marker: { enabled: false },
+                        stacking: 'normal'
+                    }
+                }
+            }
+        });
+    },
+    _getAllowedValuesFor: function(field_name){
+        var deferred = Ext.create('Deft.Deferred');
+        Rally.data.ModelFactory.getModel({
+            scope: this,
+            type:this.model,
+            context: {
+                workspace: this.getContext().getWorkspace()
+            },
+            success: function(model){
+                var field = model.getField(this.group_field);
+                field.getAllowedValueStore().load({
+                    callback: function(records, operation, success) {
+                        var allowed_values = [];
+                        Ext.Array.each(records, function(allowedValue) {
+                           allowed_values.push(allowedValue.get('StringValue'));
+                        });
+                        
+                        deferred.resolve(allowed_values);
+                    }
+                });
+            },
+            failure: function(message) {
+                deferred.reject(message);
+            }
+        });
+        
+        return deferred.promise;
+    }
+});
+            
+               Rally.launchApp('CustomApp', {
+                   name: 'Value-based Cumulative Flow Diagram'
+               });
+        });
+    </script>
+    
+    <style type="text/css">
+
+.app {
+}
+.tsinfolink {
+    position:absolute;
+    right:0px;
+    width: 14px;
+    height: 14px;
+    border-radius: 7px;
+    text-align: center;
+    color: white;
+    background: #C0C0C0;
+    border-style: solid;
+    border-width: 1px;
+    margin-top: 25px;
+    margin-right: 5px;
+    cursor: pointer;
+}
+    </style>
+
+</head>
+<body></body>
+</html>
