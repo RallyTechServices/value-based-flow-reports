@@ -3,11 +3,11 @@
 <head>
     <title>Value-based Cumulative Flow Diagram</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sat Nov 15 2014 11:58:31 GMT-0800 (PST) -->
+    <!--  Build Date: Sun Nov 23 2014 12:14:08 GMT-0800 (PST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sat Nov 15 2014 11:58:31 GMT-0800 (PST)";
-        var CHECKSUM = 4798966750;
+        var APP_BUILD_DATE = "Sun Nov 23 2014 12:14:08 GMT-0800 (PST)";
+        var CHECKSUM = 5040557781;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -282,6 +282,15 @@ Ext.define("Rally.technicalservices.ValueCFDCalculator", {
                 series.name = "True";
             }
         });
+        
+        var formatted_dates = [];
+        Ext.Array.each(chart_data.categories,function(category){
+            var d = Rally.util.DateTime.fromIsoString(category);
+            formatted_dates.push(Ext.util.Format.date(d,'d-m-Y'));
+        });
+        chart_data.categories = formatted_dates;
+        
+        console.log("chart data", chart_data);
         return chart_data;
     },
     /*

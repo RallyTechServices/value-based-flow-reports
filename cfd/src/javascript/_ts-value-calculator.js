@@ -142,6 +142,15 @@ Ext.define("Rally.technicalservices.ValueCFDCalculator", {
                 series.name = "True";
             }
         });
+        
+        var formatted_dates = [];
+        Ext.Array.each(chart_data.categories,function(category){
+            var d = Rally.util.DateTime.fromIsoString(category);
+            formatted_dates.push(Ext.util.Format.date(d,'d-m-Y'));
+        });
+        chart_data.categories = formatted_dates;
+        
+        console.log("chart data", chart_data);
         return chart_data;
     },
     /*
