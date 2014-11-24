@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Roadmap Summary Report</title>
+    <title>Cycle Time</title>
     <!--  (c) 2013 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sun Nov 23 2014 15:43:39 GMT-0800 (PST) -->
+    <!--  Build Date: Sun Nov 23 2014 18:02:41 GMT-0800 (PST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sun Nov 23 2014 15:43:39 GMT-0800 (PST)";
+        var APP_BUILD_DATE = "Sun Nov 23 2014 18:02:41 GMT-0800 (PST)";
         var CHECKSUM = [%= checksum %];
     </script>
     
@@ -17,7 +17,7 @@
             
             
                Rally.launchApp('CustomApp', {
-                   name: 'Roadmap Summary Report'
+                   name: 'Cycle Time'
                });
         });
     </script>
