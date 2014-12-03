@@ -3,10 +3,10 @@
 <head>
     <title>Cycle Time</title>
     <!--  (c) 2013 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sun Nov 23 2014 18:02:41 GMT-0800 (PST) -->
+    <!--  Build Date: Sat Nov 29 2014 19:30:01 GMT-0800 (PST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sun Nov 23 2014 18:02:41 GMT-0800 (PST)";
+        var APP_BUILD_DATE = "Sat Nov 29 2014 19:30:01 GMT-0800 (PST)";
         var CHECKSUM = [%= checksum %];
     </script>
     
