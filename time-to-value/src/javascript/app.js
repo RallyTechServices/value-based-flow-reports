@@ -139,6 +139,7 @@ Ext.define('CustomApp', {
         Ext.create('Rally.data.lookback.SnapshotStore',{
             autoLoad: true,
             fetch: ['Name','_ValidFrom'],
+            sorters: [{property:'_ValidFrom',direction:'DESC'}],
             filters: [
                 {
                     property: '_ProjectHierarchy',
@@ -163,15 +164,22 @@ Ext.define('CustomApp', {
                 scope: this,
                 load: function(store,records) {
                     summary.State = state;
+                    var records_to_keep = [];
                     var times_in_state = [];
+                    var oids_in_state = [];
+                    
                     Ext.Array.each(records,function(record){
-                        var time_in_state = this._getTimeInState(record);
-                        times_in_state.push(time_in_state);
-                        record.set('__TimeInState', time_in_state);
-                    },this);
+                        if ( !Ext.Array.contains(oids_in_state, record.get('ObjectID'))) {
+                            var time_in_state = this._getTimeInState(record);
+                            times_in_state.push(time_in_state);
+                            record.set('__TimeInState', time_in_state);
+                            records_to_keep.push(record);
+                        }
+                        oids_in_state.push(record.get('ObjectID'));
+                    },this); 
                     
                     summary.time_in_state = Ext.Array.mean(times_in_state);
-                    summary.items = records;
+                    summary.items = records_to_keep;
 
                     deferred.resolve(summary);
                 }
@@ -253,7 +261,9 @@ Ext.define('CustomApp', {
             renderer  : function(val, meta, record) {
                 return '<a href="' + detail_url_path + record.get('ObjectID') + '" target="_blank">' + val + '</a>';
             }
-        },{
+        },                
+        /*{ text: 'Date', dataIndex: '_ValidFrom' },*/
+        {
             text      : 'Days in Queue',
             dataIndex : '__TimeInState'
         }];
