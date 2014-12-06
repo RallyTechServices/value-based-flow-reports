@@ -7,8 +7,8 @@ Ext.define('CustomApp', {
     group_field: 'State',
     model: 'PortfolioItem/EPIC',
     items: [
-        {xtype:'container',itemId:'selector_box'},
-        {xtype:'container',itemId:'display_box'},
+        {xtype:'container',itemId:'selector_box', margin: 10},
+        {xtype:'container',itemId:'display_box', margin: 10},
         {xtype:'tsinfolink'}
     ],
     launch: function() {
@@ -16,21 +16,55 @@ Ext.define('CustomApp', {
             scope: this,
             success: function(allowed_values){
                 this.logger.log("Allowed Values for ", this.group_field, allowed_values);
-                this._addChart(this.down('#display_box'), allowed_values);
+                this._addFieldPicker(this.down('#selector_box'),allowed_values);
+                
             },
             failure: function(message) {
                 this.down('#display_box').add({xtype:'container',html:'Error finding allowed values: ' + message});
             }
         });
     },
-    _addChart: function(container, allowed_values){
+    _addFieldPicker: function(container,allowed_values) {
+        container.add({
+            xtype:'rallyfieldcombobox',
+            fieldLabel: 'Value Field:',
+            model: 'PortfolioItem',
+            width: 300,
+            labelWidth: 65,
+            stateId: 'technicalservices.valuecfd.value_field',
+            stateEvents: ['change'],
+            stateful: true,
+            listeners: {
+                scope: this,
+                staterestore: function(field_box,state) {
+                    if ( state.value ) {
+                        this.value_field = state.value;
+                    }
+                },
+                ready: function(field_box) {
+                    this._filterOutNonBenefitFields(field_box.getStore());
+                    if ( this.value_field ) {
+                        field_box.setValue(this.value_field);
+                    } else {
+                        field_box.setValue( field_box.getStore().getAt(0) );
+                    }
+                },
+                change: function(field_box,new_value,old_value) {
+                    this._addChart(this.down('#display_box'), allowed_values, new_value);
+                }
+            }
+        })
+    },
+    _addChart: function(container, allowed_values,value_field){
+        this.logger.log('_addChart',allowed_values,value_field);
+        container.removeAll();
         var project_oid = this.getContext().getProject().ObjectID;
 
         var start_date = Rally.util.DateTime.add(new Date(),"month",-2);
         var height = Ext.getBody().getHeight();
         
-        if ( height > 20 ) {
-            height = height - 20;
+        if ( height > 75 ) {
+            height = height - 75;
         }
         container.add({
             xtype:'rallychart',
@@ -39,15 +73,16 @@ Ext.define('CustomApp', {
             calculatorConfig: {
                 allowed_values: allowed_values,
                 group_field: this.group_field,
-                value_field: this.value_field,
-                startDate: start_date
+                value_field: value_field,
+                startDate: start_date,
+                endDate: new Date()
             },
             storeConfig: {
                 filters:[                    
                     {property:'_TypeHierarchy',value: this.model},
                     {property:'_ProjectHierarchy', value: project_oid}
                 ],
-                fetch: [this.group_field,this.value_field],
+                fetch: [this.group_field,value_field],
                 hydrate: [this.group_field]
             },
             chartConfig: {
@@ -74,6 +109,17 @@ Ext.define('CustomApp', {
                 }
             }
         });
+    },
+    _filterOutNonBenefitFields: function(store,records) {
+        store.filter([{
+            filterFn:function(field){ 
+                var attribute_type = field.get('fieldDefinition').attributeDefinition.AttributeType;
+                if (  attribute_type == "QUANTITY" || attribute_type == "INTEGER" || attribute_type == "DECIMAL" ) {
+                    if ( field.get('name').replace('Benefit','') != field.get('name') ) { return true; }
+                }
+                return false;
+            } 
+        }]);
     },
     _getAllowedValuesFor: function(field_name){
         var deferred = Ext.create('Deft.Deferred');
