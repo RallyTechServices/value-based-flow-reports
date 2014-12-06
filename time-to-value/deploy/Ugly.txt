@@ -3,10 +3,10 @@
 <head>
     <title>Time to Value</title>
     <!--  (c) 2013 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Fri Dec 05 2014 18:32:05 GMT-0800 (PST) -->
+    <!--  Build Date: Fri Dec 05 2014 18:47:36 GMT-0800 (PST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Fri Dec 05 2014 18:32:05 GMT-0800 (PST)";
+        var APP_BUILD_DATE = "Fri Dec 05 2014 18:47:36 GMT-0800 (PST)";
         var CHECKSUM = [%= checksum %];
     </script>
     

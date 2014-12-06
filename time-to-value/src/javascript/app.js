@@ -90,7 +90,16 @@ Ext.define('CustomApp', {
                         return Ext.util.Format.number(value,'0.0');
                     }
                 }
-            ]
+            ],
+            listeners: {
+                scope: this,
+                itemclick: function(view, record, item, index, evt) {
+                    var title = "Records in " + record.get('State');
+                    var records = record.get('items');
+                    
+                    this.showDetailPopup(title, records);
+                }
+            }
         });
     },
     _getKanbanStatesForType: function(pi_type) {
@@ -232,7 +241,45 @@ Ext.define('CustomApp', {
         
         return items_by_state;
     },
-
+    showDetailPopup: function(title, records) {
+        var type_path = Ext.util.Format.lowercase(this.getSetting('pi_type'));
+        
+        var detail_url_path = 'https://' + (window.location.hostname || 'rally1.rallydev.com') + '/#/detail/' + type_path + '/';
+        
+        var base_columns = [{
+            text      : 'Name',
+            dataIndex : 'Name',
+            flex: 1,
+            renderer  : function(val, meta, record) {
+                return '<a href="' + detail_url_path + record.get('ObjectID') + '" target="_blank">' + val + '</a>';
+            }
+        },{
+            text      : 'Days in Queue',
+            dataIndex : '__TimeInState'
+        }];
+        
+        var columns = Ext.Array.push(base_columns,[]);
+        
+        Ext.create('Rally.ui.dialog.Dialog', {
+            id        : 'detailPopup',
+            title     : title,
+            width     : Ext.getBody().getWidth() - 25,
+            height    : Ext.getBody().getHeight() - 25,
+            closable  : true,
+            layout    : 'fit',
+            items     : [{
+                xtype                : 'rallygrid',
+                showPagingToolbar    : false,
+                showRowActionsColumn : false,
+                disableSelection     : true,
+                columnCfgs           : columns,
+                store : Ext.create('Rally.data.custom.Store', {
+                    pageSize : 1000000,
+                    data     : records
+                })
+            }]
+        }).show();
+    },
     /********************************************
     /* Overrides for App class
     /*
