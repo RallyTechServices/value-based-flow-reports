@@ -4,7 +4,7 @@ Ext.define('CustomApp', {
     logger: new Rally.technicalservices.Logger(),
     items: [
         {xtype:'container',itemId:'message_box',tpl:'Hello, <tpl>{_refObjectName}</tpl>'},
-        {xtype:'container',itemId:'display_box'},
+        {xtype:'container',itemId:'display_box', margin: 10},
         {xtype:'tsinfolink'}
     ],
     launch: function() {
@@ -28,7 +28,7 @@ Ext.define('CustomApp', {
                 this._calculateQueueTimes(pi_type,states_to_check).then({
                     scope: this,
                     success: function(summaries){
-                        console.log(summaries);
+                        this._makeGrid(summaries);
                     },
                     failure:function(msg){
                         this.down('#display_box').add({html: 'Problem loading items: ' + msg});
@@ -59,8 +59,18 @@ Ext.define('CustomApp', {
                 Deft.Promise.all(promises).then({
                     scope: this,
                     success: function(summaries) {
-                        this.logger.log("Summaries", summaries);
-                        this._makeGrid(summaries);
+                        var total_time = 0;
+                        Ext.Array.each(summaries, function(summary){
+                            var time_in_state = summary.time_in_state || 0;
+                            total_time = total_time + time_in_state;
+                        });
+                        summaries.push({
+                            total_line: true,
+                            time_in_state: total_time,
+                            State:'Time to Value',
+                            items: []
+                        });
+                        deferred.resolve(summaries);
                     }
                 
                 });
@@ -81,11 +91,22 @@ Ext.define('CustomApp', {
             xtype:'rallygrid',
             store: store,
             showPagingToolbar: false,
+            showRowActionsColumn : false,
+            disableSelection     : true,
             columnCfgs: [
-                { text: 'In State', dataIndex: 'State' },
+                { text: 'In State', dataIndex: 'State', renderer: function(value,meta_data,record) {
+                        if ( record.get('total_line') ) {
+                            meta_data.style = "background-color:#F0F0F5";
+                        }
+                        return value;
+                    }
+                },
                 { text: 'Average Number of Days', dataIndex: 'time_in_state', renderer: function(value,meta_data,record){
                         if ( !value && value !== 0 ) {
                             return "No data found";
+                        }
+                        if ( record.get('total_line') ) {
+                            meta_data.style = "background-color:#F0F0F5";
                         }
                         return Ext.util.Format.number(value,'0.0');
                     }
@@ -94,10 +115,12 @@ Ext.define('CustomApp', {
             listeners: {
                 scope: this,
                 itemclick: function(view, record, item, index, evt) {
-                    var title = "Records in " + record.get('State');
-                    var records = record.get('items');
-                    
-                    this.showDetailPopup(title, records);
+                    if ( !record.get('total_line') ) {
+                        var title = "Records in " + record.get('State');
+                        var records = record.get('items');
+                        
+                        this.showDetailPopup(title, records);
+                    }
                 }
             }
         });
@@ -180,7 +203,8 @@ Ext.define('CustomApp', {
                     
                     summary.time_in_state = Ext.Array.mean(times_in_state);
                     summary.items = records_to_keep;
-
+                    summary.total_line = false;
+                    
                     deferred.resolve(summary);
                 }
             }
@@ -258,7 +282,7 @@ Ext.define('CustomApp', {
             text      : 'Name',
             dataIndex : 'Name',
             flex: 1,
-            renderer  : function(val, meta, record) {
+            renderer  : function(val, meta_data, record) {
                 return '<a href="' + detail_url_path + record.get('ObjectID') + '" target="_blank">' + val + '</a>';
             }
         },                
