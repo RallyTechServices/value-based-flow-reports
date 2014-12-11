@@ -23,7 +23,7 @@ Ext.define('CustomApp', {
                 this.logger.log('allowed states', allowed_values);
                 // get all the items for each state except the first and last
                 var states_to_check = Ext.clone(allowed_values);
-                states_to_check.pop();
+                //states_to_check.pop();
                 states_to_check.shift();
                 this._calculateQueueTimes(pi_type,states_to_check).then({
                     scope: this,
@@ -60,9 +60,11 @@ Ext.define('CustomApp', {
                     scope: this,
                     success: function(summaries) {
                         var total_time = 0;
-                        Ext.Array.each(summaries, function(summary){
+                        Ext.Array.each(summaries, function(summary,idx){
                             var time_in_state = summary.time_in_state || 0;
-                            total_time = total_time + time_in_state;
+                            if ( idx < summaries.length -1 ) {
+                                total_time = total_time + time_in_state;
+                            }
                         });
                         summaries.push({
                             total_line: true,
@@ -94,7 +96,7 @@ Ext.define('CustomApp', {
             showRowActionsColumn : false,
             disableSelection     : true,
             columnCfgs: [
-                { text: 'In State', dataIndex: 'State', renderer: function(value,meta_data,record) {
+                { text: 'In State', dataIndex: 'State', flex: 1, renderer: function(value,meta_data,record) {
                         if ( record.get('total_line') ) {
                             meta_data.style = "background-color:#F0F0F5";
                         }
@@ -124,6 +126,8 @@ Ext.define('CustomApp', {
                 }
             }
         });
+        
+        this.setLoading(false);
     },
     _getKanbanStatesForType: function(pi_type) {
         var deferred = Ext.create('Deft.Deferred');
@@ -369,6 +373,7 @@ Ext.define('CustomApp', {
     onSettingsUpdate: function (settings){
         //Build and save column settings...this means that we need to get the display names and multi-list
         this.logger.log('onSettingsUpdate',settings);
+        this.setLoading("Loading...");
         
         var type = this.getSetting('type');
         if (this.getSetting('pi_type') ) {
