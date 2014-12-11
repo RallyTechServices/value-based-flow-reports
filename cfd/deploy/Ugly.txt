@@ -3,10 +3,10 @@
 <head>
     <title>Value-based Cumulative Flow Diagram</title>
     <!--  (c) 2013 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sat Dec 06 2014 10:40:48 GMT-0800 (PST) -->
+    <!--  Build Date: Wed Dec 10 2014 19:43:08 GMT-0800 (PST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sat Dec 06 2014 10:40:48 GMT-0800 (PST)";
+        var APP_BUILD_DATE = "Wed Dec 10 2014 19:43:08 GMT-0800 (PST)";
         var CHECKSUM = [%= checksum %];
     </script>
     

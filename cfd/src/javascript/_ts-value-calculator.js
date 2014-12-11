@@ -46,7 +46,11 @@ Ext.define("Rally.technicalservices.ValueCFDCalculator", {
         /*
          * allowed_values (Required): array of available values in field to group by
          */
-         allowed_values: null
+         allowed_values: null, 
+        /*
+         * benefit_fields (Required): array of field names to total the sum of when _ALL is the value_field
+         */
+         benefit_fields: []
     },
     constructor: function(config){
         this.callParent(arguments);
@@ -59,6 +63,23 @@ Ext.define("Rally.technicalservices.ValueCFDCalculator", {
         if (!this.value_field) {
             throw "Cannot create Rally.technicalservices.ValueCFDCalculator by sum without value_field";
         }
+    },
+    getDerivedFieldsOnInput: function() {
+        var me = this;
+        return [{
+            as: 'DisplayValue',
+            f: function(snapshot) {
+                if ( me.value_field !== "__ALL" ||  me.benefit_fields.length === 0 ) {
+                    return snapshot[me.value_field];
+                }
+                var total = 0;
+                Ext.Array.each(me.benefit_fields, function(field) {
+                    var value = snapshot[field] || 0;
+                    total = total + value;
+                });
+                return total;
+            }
+        }];
     },
     /*
      * How to measure
@@ -74,7 +95,7 @@ Ext.define("Rally.technicalservices.ValueCFDCalculator", {
     getMetrics: function () {
         var metric = {
             f: 'groupBySum',
-            field: this.value_field, 
+            field: 'DisplayValue', 
             groupByField: this.group_field, 
             allowedValues: this.allowed_values,
             display:'area'

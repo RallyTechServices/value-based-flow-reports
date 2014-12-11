@@ -5,6 +5,7 @@ Ext.define('CustomApp', {
     defaults: { margin: 5 },
     value_field: 'c_BenefitProductivityValue',
     group_field: 'State',
+    benefit_fields: [],
     model: 'PortfolioItem/EPIC',
     items: [
         {xtype:'container',itemId:'selector_box', margin: 10},
@@ -48,9 +49,11 @@ Ext.define('CustomApp', {
                     } else {
                         field_box.setValue( field_box.getStore().getAt(0) );
                     }
+                    this._addChart(this.down('#display_box'), allowed_values, field_box.getValue());
+
                 },
-                change: function(field_box,new_value,old_value) {
-                    this._addChart(this.down('#display_box'), allowed_values, new_value);
+                select: function(field_box) {
+                    this._addChart(this.down('#display_box'), allowed_values, field_box.getValue());
                 }
             }
         })
@@ -66,12 +69,15 @@ Ext.define('CustomApp', {
         if ( height > 75 ) {
             height = height - 75;
         }
+        var fetch_fields = Ext.Array.merge([this.group_field],this.benefit_fields);
+                
         container.add({
             xtype:'rallychart',
             storeType:'Rally.data.lookback.SnapshotStore',
             calculatorType:'Rally.technicalservices.ValueCFDCalculator',
             calculatorConfig: {
                 allowed_values: allowed_values,
+                benefit_fields: this.benefit_fields,
                 group_field: this.group_field,
                 value_field: value_field,
                 startDate: start_date,
@@ -82,7 +88,7 @@ Ext.define('CustomApp', {
                     {property:'_TypeHierarchy',value: this.model},
                     {property:'_ProjectHierarchy', value: project_oid}
                 ],
-                fetch: [this.group_field,value_field],
+                fetch: fetch_fields,
                 hydrate: [this.group_field]
             },
             chartConfig: {
@@ -111,11 +117,23 @@ Ext.define('CustomApp', {
         });
     },
     _filterOutNonBenefitFields: function(store,records) {
+        var me = this;
+        
         store.filter([{
             filterFn:function(field){ 
                 var attribute_type = field.get('fieldDefinition').attributeDefinition.AttributeType;
                 if (  attribute_type == "QUANTITY" || attribute_type == "INTEGER" || attribute_type == "DECIMAL" ) {
-                    if ( field.get('name').replace('Benefit','') != field.get('name') ) { return true; }
+                    if ( field.get('name').replace('Benefit','') != field.get('name') ) { 
+                        console.log("pushing",field.get('name'), "to", me.benefit_fields);
+                        me.benefit_fields.push(field.get('value'));
+                        return true; 
+                    }
+                }
+                
+                if ( field.get('name') == 'Object ID' ) {
+                    field.set('name','-- All -- ');
+                    field.set('value','__ALL');
+                    return true;
                 }
                 return false;
             } 

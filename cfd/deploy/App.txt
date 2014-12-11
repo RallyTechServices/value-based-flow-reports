@@ -3,11 +3,11 @@
 <head>
     <title>Value-based Cumulative Flow Diagram</title>
     <!--  (c) 2014 Rally Software Development Corp.  All Rights Reserved. -->
-    <!--  Build Date: Sat Dec 06 2014 10:40:48 GMT-0800 (PST) -->
+    <!--  Build Date: Wed Dec 10 2014 19:43:08 GMT-0800 (PST) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sat Dec 06 2014 10:40:48 GMT-0800 (PST)";
-        var CHECKSUM = 6194606083;
+        var APP_BUILD_DATE = "Wed Dec 10 2014 19:43:08 GMT-0800 (PST)";
+        var CHECKSUM = 7065741198;
     </script>
     
     <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
@@ -186,7 +186,11 @@ Ext.define("Rally.technicalservices.ValueCFDCalculator", {
         /*
          * allowed_values (Required): array of available values in field to group by
          */
-         allowed_values: null
+         allowed_values: null, 
+        /*
+         * benefit_fields (Required): array of field names to total the sum of when _ALL is the value_field
+         */
+         benefit_fields: []
     },
     constructor: function(config){
         this.callParent(arguments);
@@ -199,6 +203,23 @@ Ext.define("Rally.technicalservices.ValueCFDCalculator", {
         if (!this.value_field) {
             throw "Cannot create Rally.technicalservices.ValueCFDCalculator by sum without value_field";
         }
+    },
+    getDerivedFieldsOnInput: function() {
+        var me = this;
+        return [{
+            as: 'DisplayValue',
+            f: function(snapshot) {
+                if ( me.value_field !== "__ALL" ||  me.benefit_fields.length === 0 ) {
+                    return snapshot[me.value_field];
+                }
+                var total = 0;
+                Ext.Array.each(me.benefit_fields, function(field) {
+                    var value = snapshot[field] || 0;
+                    total = total + value;
+                });
+                return total;
+            }
+        }];
     },
     /*
      * How to measure
@@ -214,7 +235,7 @@ Ext.define("Rally.technicalservices.ValueCFDCalculator", {
     getMetrics: function () {
         var metric = {
             f: 'groupBySum',
-            field: this.value_field, 
+            field: 'DisplayValue', 
             groupByField: this.group_field, 
             allowedValues: this.allowed_values,
             display:'area'
@@ -347,6 +368,7 @@ Ext.define('CustomApp', {
     defaults: { margin: 5 },
     value_field: 'c_BenefitProductivityValue',
     group_field: 'State',
+    benefit_fields: [],
     model: 'PortfolioItem/EPIC',
     items: [
         {xtype:'container',itemId:'selector_box', margin: 10},
@@ -390,9 +412,11 @@ Ext.define('CustomApp', {
                     } else {
                         field_box.setValue( field_box.getStore().getAt(0) );
                     }
+                    this._addChart(this.down('#display_box'), allowed_values, field_box.getValue());
+
                 },
-                change: function(field_box,new_value,old_value) {
-                    this._addChart(this.down('#display_box'), allowed_values, new_value);
+                select: function(field_box) {
+                    this._addChart(this.down('#display_box'), allowed_values, field_box.getValue());
                 }
             }
         })
@@ -408,12 +432,15 @@ Ext.define('CustomApp', {
         if ( height > 75 ) {
             height = height - 75;
         }
+        var fetch_fields = Ext.Array.merge([this.group_field],this.benefit_fields);
+                
         container.add({
             xtype:'rallychart',
             storeType:'Rally.data.lookback.SnapshotStore',
             calculatorType:'Rally.technicalservices.ValueCFDCalculator',
             calculatorConfig: {
                 allowed_values: allowed_values,
+                benefit_fields: this.benefit_fields,
                 group_field: this.group_field,
                 value_field: value_field,
                 startDate: start_date,
@@ -424,7 +451,7 @@ Ext.define('CustomApp', {
                     {property:'_TypeHierarchy',value: this.model},
                     {property:'_ProjectHierarchy', value: project_oid}
                 ],
-                fetch: [this.group_field,value_field],
+                fetch: fetch_fields,
                 hydrate: [this.group_field]
             },
             chartConfig: {
@@ -453,11 +480,23 @@ Ext.define('CustomApp', {
         });
     },
     _filterOutNonBenefitFields: function(store,records) {
+        var me = this;
+        
         store.filter([{
             filterFn:function(field){ 
                 var attribute_type = field.get('fieldDefinition').attributeDefinition.AttributeType;
                 if (  attribute_type == "QUANTITY" || attribute_type == "INTEGER" || attribute_type == "DECIMAL" ) {
-                    if ( field.get('name').replace('Benefit','') != field.get('name') ) { return true; }
+                    if ( field.get('name').replace('Benefit','') != field.get('name') ) { 
+                        console.log("pushing",field.get('name'), "to", me.benefit_fields);
+                        me.benefit_fields.push(field.get('value'));
+                        return true; 
+                    }
+                }
+                
+                if ( field.get('name') == 'Object ID' ) {
+                    field.set('name','-- All -- ');
+                    field.set('value','__ALL');
+                    return true;
                 }
                 return false;
             } 
